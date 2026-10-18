@@ -13,6 +13,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Catxpo">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="format-detection" content="telephone=no">
 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap">
 <style>
@@ -232,7 +233,7 @@ textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:1
 
 body.standalone .drive-only{display:none!important}
 .bk h3{font-size:1rem}
-html,body{margin:0}body{-webkit-text-size-adjust:100%}.top{padding-top:calc(12px + env(safe-area-inset-top,0px))}
+html,body{margin:0}.app{height:100vh;height:100dvh}input,select,textarea{font-size:16px}body{-webkit-text-size-adjust:100%}.top{padding-top:calc(12px + env(safe-area-inset-top,0px))}
 </style>
 </head>
 <body>
@@ -701,7 +702,7 @@ function backupCard(){
   return `<section class="card bk"><h3>Sauvegarde</h3>
   <p class="muted" style="margin:6px 0 10px">Exporte toutes tes infos (statut, checklist, hôtel, notes, adresse de départ) dans un fichier. Envoie-le par e-mail, WhatsApp ou AirDrop : il s'importe dans n'importe quel Catxpo.</p>
   <div class="actions"><button type="button" class="btn pri" data-bk="export"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Exporter</button><button type="button" class="btn" data-bk="import"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></svg>Importer</button></div>
-  <input type="file" id="bkFile" accept=".json,application/json" hidden>
+  <input type="file" id="bkFile" accept=".json,.txt,application/json,text/plain,application/octet-stream" hidden>
   <p class="foot" style="margin:8px 0 0">Importer remplace le planning de cet appareil par celui du fichier.</p></section>`;
 }
 function backupData(){return{app:"Catxpo",format:1,exported:new Date().toISOString(),items:JSON.parse(JSON.stringify(PLAN)),home:HOME,depart:DEP}}
@@ -711,7 +712,9 @@ async function exportBackup(){
   if(window.claude&&window.claude.use){try{dl=await window.claude.use("downloads")}catch(e){dl=null}}
   if(dl){try{await dl.save({filename:name,data:txt});toast("Sauvegarde exportée");}catch(e){if(e&&e.code==="declined")return;toast("Export impossible ici")}return}
   const file=new File([txt],name,{type:"application/json"});
-  try{if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:"Sauvegarde Catxpo"});return}}catch(e){if(e&&e.name==="AbortError")return}
+  // iPhone : partage du .json ; Android n'accepte pas le .json dans le partage, on l'envoie en .txt (il s'importe pareil)
+  const alt=new File([txt],name.replace(/\.json$/,".txt"),{type:"text/plain"});
+  for(const f of [file,alt]){try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:"Sauvegarde Catxpo"});return}}catch(e){if(e&&e.name==="AbortError")return}}
   const a=document.createElement("a");a.href=URL.createObjectURL(file);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);toast("Sauvegarde téléchargée");
 }
 function cleanItems(o){const out={};if(!o||typeof o!=="object"||Array.isArray(o))return null;
@@ -731,6 +734,11 @@ function importBackup(file){
 document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-bk]");if(!b)return;if(b.dataset.bk==="export")exportBackup();else{const f=$("#bkFile");if(f){f.value="";f.click()}}});
 document.addEventListener("change",e=>{if(e.target&&e.target.id==="bkFile")importBackup(e.target.files&&e.target.files[0])});
 if(STANDALONE)document.body.classList.add("standalone");
+// bouton « retour » d'Android : ferme la fiche au lieu de quitter l'app
+(()=>{const sc=$("#scrim");let pushed=false;
+  new MutationObserver(()=>{if(!sc.hidden&&!pushed){pushed=true;history.pushState({catxpo:1},"")}else if(sc.hidden&&pushed){pushed=false;if(history.state&&history.state.catxpo)history.back()}}).observe(sc,{attributes:true,attributeFilter:["hidden"]});
+  addEventListener("popstate",()=>{if(pushed&&!sc.hidden){pushed=false;closeSheet()}});})();
+if("serviceWorker"in navigator&&location.protocol==="https:")addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 render();
 </script>
 

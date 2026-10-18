@@ -14,6 +14,7 @@ Données : calendrier officiel TICA et sites des clubs, consultés en octobre 20
 | `index.html` | L'application complète |
 | `cities.txt` | 135 233 villes du monde (recherche du lieu de départ) |
 | `manifest.webmanifest`, `icon-*.png` | Installation sur l'écran d'accueil (iPhone, Android) |
+| `sw.js` | Fait marcher l'app hors connexion et la met à jour toute seule |
 | `.nojekyll` | Indique à GitHub Pages de publier les fichiers tels quels |
 
 ## Mettre en ligne avec GitHub Pages
@@ -30,8 +31,24 @@ Données : calendrier officiel TICA et sites des clubs, consultés en octobre 20
 2. Touche le bouton **Partager** (carré avec une flèche vers le haut).
 3. Choisis **Sur l'écran d'accueil**, puis **Ajouter**. L'icône Catxpo apparaît comme une app.
 
+## Installer sur Android
+
+1. Ouvre l'adresse dans **Chrome**.
+2. Touche le menu **⋮** en haut à droite, puis **Installer l'application** (ou **Ajouter à l'écran d'accueil**).
+3. Confirme avec **Installer**. Catxpo s'ouvre ensuite en plein écran, comme une app.
+
+## Passer le planning d'un téléphone à l'autre
+
+Dans **Mon planning**, carte **Sauvegarde** :
+- **Exporter** crée un fichier de sauvegarde et ouvre le menu de partage (e-mail, WhatsApp, AirDrop…).
+  Sur Android, le fichier est envoyé en `.txt` : c'est normal, il s'importe de la même façon.
+- Sur l'autre téléphone, enregistre le fichier reçu, puis **Importer** et choisis-le.
+  L'import remplace le planning de ce téléphone.
+
 ## Bon à savoir
 
+- L'app marche aussi **sans connexion** une fois ouverte une première fois (les liens Google Maps demandent du réseau).
+- Après une mise à jour sur GitHub, ferme et rouvre l'app : elle charge la nouvelle version.
 - Le planning, le domicile et les notes sont enregistrés **sur chaque appareil** (dans le navigateur). Ils ne sont pas partagés entre deux téléphones.
 - La recherche « Chercher partout » (villages, codes postaux), la sauvegarde Google Drive et les notifications de rappel
   fonctionnent uniquement dans la version Catxpo ouverte dans Claude. Ici, les rappels apparaissent sur l'accueil (« À faire : inscriptions »).
