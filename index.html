@@ -700,22 +700,28 @@ function gcal(s){const b=pd(s.d2);b.setDate(b.getDate()+1);const f=d=>iso(d).rep
 // ---------- sauvegarde : exporter / importer un fichier ----------
 function backupCard(){
   return `<section class="card bk"><h3>Sauvegarde</h3>
-  <p class="muted" style="margin:6px 0 10px">Exporte toutes tes infos (statut, checklist, hôtel, notes, adresse de départ) dans un fichier. Envoie-le par e-mail, WhatsApp ou AirDrop : il s'importe dans n'importe quel Catxpo.</p>
-  <div class="actions"><button type="button" class="btn pri" data-bk="export"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Exporter</button><button type="button" class="btn" data-bk="import"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></svg>Importer</button></div>
+  <p class="muted" style="margin:6px 0 10px">« Exporter » prépare un mail avec toutes tes infos en pièce jointe (statut, checklist, hôtel, notes, adresse de départ). Sur l'autre appareil, « Importer » le fichier reçu.</p>
+  <div class="actions"><button type="button" class="btn pri" data-bk="export"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Exporter par mail</button><button type="button" class="btn" data-bk="import"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></svg>Importer</button></div>
   <input type="file" id="bkFile" accept=".json,.txt,application/json,text/plain,application/octet-stream" hidden>
   <p class="foot" style="margin:8px 0 0">Importer remplace le planning de cet appareil par celui du fichier.</p></section>`;
 }
 function backupData(){return{app:"Catxpo",format:1,exported:new Date().toISOString(),items:JSON.parse(JSON.stringify(PLAN)),home:HOME,depart:DEP}}
 async function exportBackup(){
   const name=`catxpo-sauvegarde-${TODAY}.json`,txt=JSON.stringify(backupData(),null,2);
+  const day=new Date().toLocaleDateString("fr-BE");
+  const subj=`Sauvegarde Catxpo du ${day}`;
+  const body=`Voici ma sauvegarde Catxpo du ${day}.\n\nPour l'ouvrir : enregistre le fichier joint, puis dans Catxpo > Mon planning > Sauvegarde, touche « Importer » et choisis-le.`;
+  const mail=()=>{const a=document.createElement("a");a.href=`mailto:?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove()};
+  // 1) téléphone (et PC Windows) : menu de partage avec le fichier joint -> choisir Mail ou Gmail
+  const file=new File([txt],name,{type:"application/json"});
+  const alt=new File([txt],name.replace(/\.json$/,".txt"),{type:"text/plain"});
+  for(const f of [file,alt]){try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:subj,text:body});return}}catch(e){if(e&&e.name==="AbortError")return}}
+  // 2) sinon : le fichier est enregistré, puis la boîte mail s'ouvre avec le message prêt (il reste à joindre le fichier)
   let dl=null;
   if(window.claude&&window.claude.use){try{dl=await window.claude.use("downloads")}catch(e){dl=null}}
-  if(dl){try{await dl.save({filename:name,data:txt});toast("Sauvegarde exportée");}catch(e){if(e&&e.code==="declined")return;toast("Export impossible ici")}return}
-  const file=new File([txt],name,{type:"application/json"});
-  // iPhone : partage du .json ; Android n'accepte pas le .json dans le partage, on l'envoie en .txt (il s'importe pareil)
-  const alt=new File([txt],name.replace(/\.json$/,".txt"),{type:"text/plain"});
-  for(const f of [file,alt]){try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:"Sauvegarde Catxpo"});return}}catch(e){if(e&&e.name==="AbortError")return}}
-  const a=document.createElement("a");a.href=URL.createObjectURL(file);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);toast("Sauvegarde téléchargée");
+  if(dl){try{await dl.save({filename:name,data:txt})}catch(e){if(e&&e.code==="declined")return;toast("Export impossible ici");return}}
+  else{const a=document.createElement("a");a.href=URL.createObjectURL(file);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
+  mail();toast("Fichier enregistré : joins-le au mail (trombone)");
 }
 function cleanItems(o){const out={};if(!o||typeof o!=="object"||Array.isArray(o))return null;
   for(const[k,v]of Object.entries(o)){if(!/^[\w.:@+~-]{1,200}$/.test(k)||!v||typeof v!=="object"||Array.isArray(v))continue;out[k]=JSON.parse(JSON.stringify(v))}return out}
