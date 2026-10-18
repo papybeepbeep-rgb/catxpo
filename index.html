@@ -703,7 +703,7 @@ function backupCard(){
   <p class="muted" style="margin:6px 0 10px">« Exporter » prépare un mail avec toutes tes infos en pièce jointe (statut, checklist, hôtel, notes, adresse de départ). Sur l'autre appareil, « Importer » le fichier reçu.</p>
   <div class="actions"><button type="button" class="btn pri" data-bk="export"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Exporter par mail</button><button type="button" class="btn" data-bk="import"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></svg>Importer</button></div>
   <input type="file" id="bkFile" accept=".json,.txt,application/json,text/plain,application/octet-stream" hidden>
-  <p class="foot" style="margin:8px 0 0">Importer remplace le planning de cet appareil par celui du fichier.</p></section>`;
+  <p class="foot" style="margin:8px 0 0">Importer remplace le planning de cet appareil par celui du fichier. · version 18/10 c</p></section>`;
 }
 function backupData(){return{app:"Catxpo",format:1,exported:new Date().toISOString(),items:JSON.parse(JSON.stringify(PLAN)),home:HOME,depart:DEP}}
 async function exportBackup(){
@@ -715,7 +715,10 @@ async function exportBackup(){
   // 1) téléphone (et PC Windows) : menu de partage avec le fichier joint -> choisir Mail ou Gmail
   const file=new File([txt],name,{type:"application/json"});
   const alt=new File([txt],name.replace(/\.json$/,".txt"),{type:"text/plain"});
-  for(const f of [file,alt]){try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:subj,text:body});return}}catch(e){if(e&&e.name==="AbortError")return}}
+  if(navigator.share){for(const f of [alt,file]){let ok=true;try{ok=!navigator.canShare||navigator.canShare({files:[f]})}catch(e){ok=false}
+    if(!ok)continue;
+    try{await navigator.share({files:[f],title:subj,text:body});return}catch(e){if(e&&e.name==="AbortError")return;
+      try{await navigator.share({files:[f]});return}catch(e2){if(e2&&e2.name==="AbortError")return}}}}
   // 2) sinon : le fichier est enregistré, puis la boîte mail s'ouvre avec le message prêt (il reste à joindre le fichier)
   let dl=null;
   if(window.claude&&window.claude.use){try{dl=await window.claude.use("downloads")}catch(e){dl=null}}
@@ -744,7 +747,7 @@ if(STANDALONE)document.body.classList.add("standalone");
 (()=>{const sc=$("#scrim");let pushed=false;
   new MutationObserver(()=>{if(!sc.hidden&&!pushed){pushed=true;history.pushState({catxpo:1},"")}else if(sc.hidden&&pushed){pushed=false;if(history.state&&history.state.catxpo)history.back()}}).observe(sc,{attributes:true,attributeFilter:["hidden"]});
   addEventListener("popstate",()=>{if(pushed&&!sc.hidden){pushed=false;closeSheet()}});})();
-if("serviceWorker"in navigator&&location.protocol==="https:")addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+if("serviceWorker"in navigator&&location.protocol==="https:")addEventListener("load",()=>{let r0=!!navigator.serviceWorker.controller;navigator.serviceWorker.addEventListener("controllerchange",()=>{if(r0){r0=false;location.reload()}});navigator.serviceWorker.register("sw.js").then(r=>r.update()).catch(()=>{})});
 render();
 </script>
 
