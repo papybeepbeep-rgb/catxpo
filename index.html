@@ -831,11 +831,9 @@ function gcal(s){const b=pd(s.d2);b.setDate(b.getDate()+1);const f=d=>iso(d).rep
 // ---------- sauvegarde : exporter / importer un fichier ----------
 function backupCard(){
   return `<section class="card bk"><h3>Sauvegarde</h3>
-  <p class="muted" style="margin:6px 0 10px">Toutes tes infos (planning, checklist, hôtel, notes, élevage et photos, adresse de départ) dans un fichier <b>sauvegarde</b> au format JSON, à garder sur ton Google Drive.</p>
-  <div class="actions"><button type="button" class="btn pri" data-bk="export"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 13v7h14v-7"/></svg>Envoyer vers le Drive</button><button type="button" class="btn" data-bk="import"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 13v7h14v-7"/></svg>Récupérer depuis le Drive</button></div>
-  <div id="bkHelp" class="alert a-ok" hidden style="margin-top:8px"></div>
-  <input type="file" id="bkFile" accept=".json,.txt,application/json,text/plain,application/octet-stream" hidden>
-  <p class="foot" style="margin:8px 0 0">« Récupérer » remplace le planning et l'élevage de cet appareil par ceux du fichier. Sur iPhone, active Drive une fois dans l'app Fichiers (Parcourir › ⋯ › Modifier). · version 24/10</p></section>`;
+  <p class="muted" style="margin:6px 0 10px">Envoie ou récupère toutes tes infos (planning, checklist, hôtel, notes, élevage et photos) sur Google Drive, pour passer d'un appareil à l'autre.</p>
+  <button type="button" class="btn pri" data-bk="sync" style="width:100%">💾 Sauvegarde</button>
+  <p class="foot" style="margin:8px 0 0">version 24/10 b</p></section>`;
 }
 function backupData(){return{app:"Catxpo",format:1,exported:new Date().toISOString(),items:JSON.parse(JSON.stringify(PLAN)),elevage:ELEV,home:HOME,depart:DEP}}
 async function exportBackup(){
@@ -871,6 +869,96 @@ function applyBackup(d){{
     if(d.home&&typeof d.home.la==="number"&&d.home.q){HOME={...d.home,n:"Chez moi",home:true};try{localStorage.setItem("polyexpo-home",JSON.stringify(HOME))}catch(e){}if(DEP.home){DEP=HOME;applyDep()}}
     savePlan();render();toast(`Sauvegarde importée : ${n} expo${n>1?"s":""}`)}
 }
+
+// ---------- Sauvegarde Google Drive (même fonctionnement qu'Ahrou) ----------
+const SYNC_FILENAME="Catxpo_donnees.json";
+const HAS_CLAUDE=!!(window.claude&&typeof window.claude.use==="function");
+// Hors de Claude (GitHub Pages) : connexion directe à Google Drive avec le compte Google de l'utilisateur
+const GOOGLE_CLIENT_ID="994237079286-jktufkaevru2ufo06a6ejvun7j9sdnm4.apps.googleusercontent.com";
+const DRIVE_SCOPE="https://www.googleapis.com/auth/drive.file";
+let gisLoading=null,gToken=null,gTokenExp=0,gTokenPromise=null;
+function loadGis(){if(window.google&&google.accounts&&google.accounts.oauth2)return Promise.resolve();if(gisLoading)return gisLoading;
+  gisLoading=new Promise((ok,ko)=>{const sc=document.createElement("script");sc.src="https://accounts.google.com/gsi/client";sc.async=true;sc.onload=()=>ok();sc.onerror=()=>{gisLoading=null;ko({code:"gis_load_failed"})};document.head.appendChild(sc)});return gisLoading}
+if(!HAS_CLAUDE&&GOOGLE_CLIENT_ID&&location.protocol==="https:")loadGis().catch(()=>{});
+function getGoogleToken(forceNew){if(!GOOGLE_CLIENT_ID)return Promise.reject({code:"drive_not_configured"});
+  if(!forceNew&&gToken&&Date.now()<gTokenExp-60000)return Promise.resolve(gToken);if(gTokenPromise)return gTokenPromise;
+  gTokenPromise=loadGis().then(()=>new Promise((ok,ko)=>{const client=google.accounts.oauth2.initTokenClient({client_id:GOOGLE_CLIENT_ID,scope:DRIVE_SCOPE,
+    callback:r=>{if(r&&r.access_token){gToken=r.access_token;gTokenExp=Date.now()+(Number(r.expires_in)||3600)*1000;ok(gToken)}else ko({code:"not_granted"})},error_callback:()=>ko({code:"not_granted"})});
+    client.requestAccessToken({prompt:gToken?"":"consent"})})).finally(()=>{gTokenPromise=null});return gTokenPromise}
+async function gFetch(url,opts,retried){const token=await getGoogleToken(false);opts=opts||{};opts.headers=Object.assign({},opts.headers||{},{Authorization:"Bearer "+token});
+  const res=await fetch(url,opts);if(res.status===401&&!retried){gToken=null;return gFetch(url,opts,true)}if(!res.ok)throw{code:"drive_http_"+res.status};return res}
+const b64Utf8=t=>btoa(unescape(encodeURIComponent(t)));
+const DRIVE_API="https://www.googleapis.com/drive/v3/files",DRIVE_UP="https://www.googleapis.com/upload/drive/v3/files";
+const directDrive={async callTool(server,tool,args){args=args||{};
+  if(tool==="create_file"){const q=encodeURIComponent("name = '"+args.title.replace(/'/g,"\\'")+"' and trashed = false");
+    const found=await(await gFetch(DRIVE_API+"?q="+q+"&fields=files(id)&orderBy=modifiedTime desc")).json();
+    if(found.files&&found.files.length){const id=found.files[0].id;await gFetch(DRIVE_UP+"/"+id+"?uploadType=media",{method:"PATCH",headers:{"Content-Type":"application/json"},body:args.textContent});return{payload:{id,name:args.title}}}
+    const b="ctx"+Math.random().toString(36).slice(2);const body="--"+b+"\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"+JSON.stringify({name:args.title})+"\r\n--"+b+"\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"+(args.textContent||"")+"\r\n--"+b+"--";
+    const res=await gFetch(DRIVE_UP+"?uploadType=multipart&fields=id,name",{method:"POST",headers:{"Content-Type":"multipart/related; boundary="+b},body});return{payload:await res.json()}}
+  if(tool==="search_files"){const m=/contains\s+'([^']*)'/.exec(args.query||"");const q=encodeURIComponent("name contains '"+(m?m[1]:"").replace(/'/g,"\\'")+"' and trashed = false");
+    const data=await(await gFetch(DRIVE_API+"?q="+q+"&orderBy=modifiedTime desc&pageSize="+(args.pageSize||10)+"&fields=files(id,name,createdTime,modifiedTime)")).json();
+    return{payload:{files:(data.files||[]).map(f=>Object.assign({},f,{createdTime:f.modifiedTime||f.createdTime}))}}}
+  if(tool==="download_file_content"){const t=await(await gFetch(DRIVE_API+"/"+encodeURIComponent(args.fileId)+"?alt=media")).text();return{payload:{content:b64Utf8(t)}}}
+  throw{code:"unsupported_tool"}}};
+async function getMcp(){if(HAS_CLAUDE)return window.claude.use("mcp");getGoogleToken(false).catch(()=>{});return directDrive}
+function syncErr(err){const c=err&&err.code;
+  if(c==="drive_not_configured")return"⚙️ Google Drive n'est pas configuré pour cette version.";
+  if(c==="gis_load_failed")return"⚠️ Impossible de joindre Google. Vérifie ta connexion Internet.";
+  if(c==="needs_reauth")return HAS_CLAUDE?"⚠️ Ta connexion à Google Drive a expiré. Reconnecte-la dans les réglages de Claude.":"⚠️ Ta connexion Google a expiré : réessaie, une fenêtre Google va s'ouvrir.";
+  if(c==="server_not_connected")return"Google Drive n'est pas connecté à Claude.";
+  if(c==="not_granted")return"Autorisation refusée pour accéder à Google Drive.";
+  return"Une erreur est survenue lors de la synchronisation."}
+function fullBackup(){const full=backupData();const ph={};(ELEV.cats||[]).forEach(c=>{if(PHOTOS[c.id])ph[c.id]=PHOTOS[c.id]});if(Object.keys(ph).length)full.photos=ph;return full}
+function validBackup(d){return d&&typeof d==="object"&&(!d.app||d.app==="Catxpo")&&cleanItems(d.items)}
+const itemFilled=p=>!!(p&&(p.status||p.note||p.hotel||Object.values(p.checks||{}).some(Boolean)));
+const catFilled=c=>!!(c&&(c.nom||c.naiss||c.couleur||c.reg||c.puce||c.notes));
+// Fusion : rien de rempli n'est effacé ; en cas de doublon, preferOther décide
+function mergeBackup(d,preferOther){let n=0;
+  const items=cleanItems(d.items)||{};
+  for(const[k,v]of Object.entries(items)){const l=PLAN[k];if(!byKey[k]&&!l)continue;
+    const take=!l||(!itemFilled(l)&&itemFilled(v))||(preferOther&&itemFilled(v));
+    if(take&&JSON.stringify(l)!==JSON.stringify(v)){PLAN[k]=v;n++}}
+  if(d.elevage&&typeof d.elevage==="object"){const o=normElev(d.elevage);
+    for(const k of["nom","affixe","tica","ville","site"])if(o[k]&&(!ELEV[k]||preferOther)&&ELEV[k]!==o[k]){ELEV[k]=o[k];n++}
+    o.cats.forEach(c=>{const i=ELEV.cats.findIndex(x=>x.id===c.id);
+      if(i<0){ELEV.cats.push(c);n++}else if((preferOther||!catFilled(ELEV.cats[i]))&&catFilled(c)&&JSON.stringify(ELEV.cats[i])!==JSON.stringify(c)){ELEV.cats[i]=c;n++}});
+    try{localStorage.setItem("polyexpo-elevage",JSON.stringify(ELEV))}catch(e){}}
+  if(d.photos&&typeof d.photos==="object")for(const[id,src]of Object.entries(d.photos)){if(typeof src==="string"&&/^data:image\/(jpeg|png|webp);base64,/.test(src)&&src.length<8e6&&(!PHOTOS[id]||(preferOther&&PHOTOS[id]!==src))){photoPut(String(id).slice(0,40),src);n++}}
+  if(d.home&&typeof d.home.la==="number"&&d.home.q&&!HOME.q){HOME={...d.home,n:"Chez moi",home:true};try{localStorage.setItem("polyexpo-home",JSON.stringify(HOME))}catch(e){}if(DEP.home){DEP=HOME;applyDep()}n++}
+  return n}
+async function fetchRemote(mcp){const r=await mcp.callTool("Google Drive","search_files",{query:"title contains 'Catxpo_donnees'",excludeContentSnippets:true,pageSize:10});
+  const files=((r&&r.payload&&r.payload.files)||[]).slice().sort((a,b)=>new Date(b.createdTime)-new Date(a.createdTime));if(!files.length)return null;
+  const dl=await mcp.callTool("Google Drive","download_file_content",{fileId:files[0].id});const b64=dl&&dl.payload&&dl.payload.content;if(!b64)return null;
+  try{const o=JSON.parse(decodeURIComponent(escape(atob(b64))));return validBackup(o)?o:null}catch(e){return null}}
+async function uploadToDrive(){const mcp=await getMcp();if(!mcp)throw{code:"drive_unavailable"};
+  const remote=await fetchRemote(mcp);if(remote&&mergeBackup(remote,false)){savePlan();render()}
+  await mcp.callTool("Google Drive","create_file",{title:SYNC_FILENAME,textContent:JSON.stringify(fullBackup(),null,2),contentMimeType:"application/json",disableConversionToGoogleType:true})}
+function syncMsg(h){const e=$("#syncStatus");if(e)e.innerHTML=h}
+function confirmMerge(d,okId){const n=Object.keys(cleanItems(d.items)||{}).filter(k=>byKey[k]).length,nc=d.elevage&&Array.isArray(d.elevage.cats)?d.elevage.cats.length:0;
+  const when=d.exported?` du ${new Date(d.exported).toLocaleDateString("fr-BE")}`:"";
+  syncMsg(`<p>Des données ont été trouvées${when} (${n} expo${n>1?"s":""}${nc?`, ${nc} chat${nc>1?"s":""}`:""}). Elles vont être <b>fusionnées</b> avec celles de cet appareil : ce qui est rempli ici n'est jamais effacé, et pour une même expo ou un même chat, la version récupérée est gardée.</p><button type="button" class="btn pri" id="${okId}" style="width:100%;margin-top:6px">✅ Oui, fusionner</button><button type="button" class="btn" id="${okId}No" style="width:100%;margin-top:6px">Annuler</button>`);
+  $("#"+okId).addEventListener("click",()=>{const c=mergeBackup(d,true);savePlan();render();openSync();syncMsg(`<p>${c?`✅ Données fusionnées : ${c} élément(s) ajouté(s) ou mis à jour.`:"✅ Tout était déjà à jour sur cet appareil."}</p>`)});
+  $("#"+okId+"No").addEventListener("click",()=>syncMsg(""))}
+function openSync(){lastFocus=document.activeElement;const sc=$("#scrim");
+  sc.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="syT"><div class="grab"></div>
+  <div class="shhead"><h2 id="syT">💾 Sauvegarde</h2><button type="button" class="iconbtn" id="close" aria-label="Fermer"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="shbody"><p class="muted" style="margin:0">Choisis un sens de synchronisation avec Google Drive.</p>
+  <button type="button" class="btn" id="btnSyncDown">⬇️ Récupérer depuis Drive</button>
+  <button type="button" class="btn" id="btnSyncUp">⬆️ Envoyer vers Drive</button>
+  <button type="button" class="btn" id="btnSyncFile">📂 Ouvrir un fichier de sauvegarde</button>
+  <input type="file" id="syncFileInput" accept=".json,.txt,application/json,text/plain,application/octet-stream" hidden>
+  <div id="syncStatus"></div>
+  <button type="button" class="btn" id="btnCloseSync">Fermer</button></div></div>`;
+  sc.hidden=false;openK=null;
+  $("#close").addEventListener("click",closeSheet);$("#btnCloseSync").addEventListener("click",closeSheet);
+  $("#btnSyncUp").addEventListener("click",async()=>{syncMsg("<p>Envoi vers Google Drive…</p>");try{await uploadToDrive();syncMsg("<p>✅ Données envoyées sur Google Drive.</p>")}catch(err){console.error(err);syncMsg("<p>"+(err&&err.code==="drive_unavailable"?"Google Drive n'est pas disponible dans cette vue.":syncErr(err))+"</p>")}});
+  $("#btnSyncDown").addEventListener("click",async()=>{syncMsg("<p>Recherche sur Google Drive…</p>");try{const mcp=await getMcp();if(!mcp){syncMsg("<p>Google Drive n'est pas disponible dans cette vue.</p>");return}
+    const d=await fetchRemote(mcp);if(!d){syncMsg(`<p>Aucune donnée trouvée sur Drive. Utilise « Envoyer vers Drive » d'abord.</p><p class="muted" style="font-size:.85rem">La sauvegarde a peut-être été faite depuis une autre version de Catxpo (par exemple dans Claude) : elle est sur le Drive, mais cette version ne peut pas la voir. Touche « Ouvrir un fichier de sauvegarde » et choisis <b>${SYNC_FILENAME}</b> dans Google Drive.</p>`);return}
+    confirmMerge(d,"btnSyncDownConfirm")}catch(err){console.error(err);syncMsg("<p>"+syncErr(err)+"</p>")}});
+  $("#btnSyncFile").addEventListener("click",()=>{const i=$("#syncFileInput");i.value="";i.click()});
+  $("#syncFileInput").addEventListener("change",e=>{const f=e.target.files&&e.target.files[0];if(!f)return;const r=new FileReader();
+    r.onload=()=>{let d=null;try{d=JSON.parse(String(r.result||""))}catch(er){}if(!validBackup(d)){syncMsg("<p>Ce fichier n'est pas une sauvegarde Catxpo.</p>");return}confirmMerge(d,"btnFileConfirm")};r.readAsText(f)});
+}
 // ---------- lien d'import (sauvegarde rangée dans le lien, après le #, jamais envoyée au serveur) ----------
 const LINK_BASE="https://papybeepbeep-rgb.github.io/catxpo/";
 const b64u=u8=>{let s="";for(let i=0;i<u8.length;i+=8192)s+=String.fromCharCode.apply(null,u8.subarray(i,i+8192));return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")};
@@ -889,7 +977,7 @@ async function openPaste(){const box=$("#pasteBox");if(!box)return;box.hidden=fa
 async function importFromLink(){const m=location.hash.match(/^#import=([\w-]+)$/);if(!m)return;
   try{history.replaceState(null,"",location.pathname+location.search)}catch(e){}
   try{const d=await unpackBackup(m[1]);view="plan";render();applyBackup(d)}catch(e){toast("Ce lien d'import est abîmé : demande un nouvel envoi")}}
-document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-bk]");if(!b)return;if(b.dataset.bk==="export")exportBackup();else{const f=$("#bkFile");if(f){f.value="";f.click()}}});
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-bk]");if(!b)return;if(b.dataset.bk==="sync")openSync();else if(b.dataset.bk==="export")exportBackup();else{const f=$("#bkFile");if(f){f.value="";f.click()}}});
 document.addEventListener("click",async e=>{if(e.target&&e.target.closest&&e.target.closest("#pasteGo")){const v=$("#pasteIn").value;if(!v.trim()){toast("Colle d'abord le lien");return}await importFromText(v)}});
 document.addEventListener("change",e=>{if(e.target&&e.target.id==="bkFile")importBackup(e.target.files&&e.target.files[0])});
 if(STANDALONE)document.body.classList.add("standalone");

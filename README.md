@@ -37,15 +37,14 @@ Données : calendrier officiel TICA et sites des clubs, consultés en octobre 20
 2. Touche le menu **⋮** en haut à droite, puis **Installer l'application** (ou **Ajouter à l'écran d'accueil**).
 3. Confirme avec **Installer**. Catxpo s'ouvre ensuite en plein écran, comme une app.
 
-## Passer le planning d'un téléphone à l'autre (Google Drive)
+## Sauvegarde Google Drive (comme dans Ahrou)
 
-Dans **Mon planning**, carte **Sauvegarde** :
-- **Envoyer vers le Drive** crée le fichier `sauvegarde-AAAA-MM-JJ.json` (planning, checklists, hôtels, notes, élevage, photos).
-  Sur iPhone, le menu de partage s'ouvre : choisis Drive. Sur Android, le fichier va dans Téléchargements :
-  ouvre l'app Drive, touche **+**, **Importer**, et choisis-le.
-- **Récupérer depuis le Drive** ouvre le choix de fichier : va dans Drive et prends la sauvegarde la plus récente.
-  Elle remplace le planning et l'élevage de l'appareil.
-- Sur iPhone, active Drive une seule fois dans l'app Fichiers : Parcourir › ⋯ › Modifier › Drive.
+Dans **Mon planning**, bouton **💾 Sauvegarde** :
+- **⬆️ Envoyer vers Drive** : enregistre `Catxpo_donnees.json` sur ton Google Drive (une fenêtre Google demande l'accès la première fois).
+- **⬇️ Récupérer depuis Drive** : retrouve ce fichier et le **fusionne** avec l'appareil (rien de rempli n'est effacé).
+- **📂 Ouvrir un fichier de sauvegarde** : choisis `Catxpo_donnees.json` toi-même (dans Drive, Fichiers…), utile si la sauvegarde vient d'un autre compte ou de la version Claude.
+
+Pour que deux téléphones partagent les mêmes données avec les boutons Drive, connecte-les au **même compte Google**.
 
 ## Bon à savoir
 
