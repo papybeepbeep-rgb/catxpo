@@ -44,6 +44,9 @@ Dans **Mon planning**, carte **Sauvegarde** :
   Sur Android, le fichier est envoyé en `.txt` : c'est normal, il s'importe de la même façon.
 - Sur l'autre téléphone, enregistre le fichier reçu, puis **Importer** et choisis-le.
   L'import remplace le planning de ce téléphone.
+- **iPhone avec l'icône Catxpo** : appui long sur le lien du mail, « Copier le lien », puis dans Catxpo
+  **Coller un lien d'import** et **Importer**. (Toucher le lien l'ouvrirait dans Safari, qui garde ses données à part.)
+  Les photos des cartes d'identité ne passent que par le fichier joint.
 
 ## Bon à savoir
 
