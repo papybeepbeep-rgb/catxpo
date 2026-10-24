@@ -831,35 +831,27 @@ function gcal(s){const b=pd(s.d2);b.setDate(b.getDate()+1);const f=d=>iso(d).rep
 // ---------- sauvegarde : exporter / importer un fichier ----------
 function backupCard(){
   return `<section class="card bk"><h3>Sauvegarde</h3>
-  <p class="muted" style="margin:6px 0 10px">« Exporter » prépare un mail avec un lien d'import et toutes tes infos en pièce jointe (planning, checklist, hôtel, notes, élevage, adresse de départ). Sur l'autre appareil, « Importer » le fichier reçu.</p>
-  <div class="actions"><button type="button" class="btn pri" data-bk="export"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Exporter par mail</button><button type="button" class="btn" data-bk="import"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V9M7 14l5-5 5 5M5 3h14"/></svg>Importer</button></div>
-  <button type="button" class="btn" data-bk="paste" style="width:100%;margin-top:8px"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/></svg>Coller un lien d'import</button>
-  <div id="pasteBox" hidden style="margin-top:8px;display:flex;flex-direction:column;gap:6px"><label class="muted" for="pasteIn" style="font-size:.85rem">Copie le lien reçu par mail (appui long sur le lien, puis « Copier le lien »), puis colle-le ici :</label>
-    <div class="origrow"><input id="pasteIn" type="url" inputmode="url" autocomplete="off" placeholder="https://…#import=…"><button type="button" class="btn pri" id="pasteGo">Importer</button></div></div>
+  <p class="muted" style="margin:6px 0 10px">Toutes tes infos (planning, checklist, hôtel, notes, élevage et photos, adresse de départ) dans un fichier <b>sauvegarde</b> au format JSON, à garder sur ton Google Drive.</p>
+  <div class="actions"><button type="button" class="btn pri" data-bk="export"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 13v7h14v-7"/></svg>Envoyer vers le Drive</button><button type="button" class="btn" data-bk="import"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 13v7h14v-7"/></svg>Récupérer depuis le Drive</button></div>
+  <div id="bkHelp" class="alert a-ok" hidden style="margin-top:8px"></div>
   <input type="file" id="bkFile" accept=".json,.txt,application/json,text/plain,application/octet-stream" hidden>
-  <p class="foot" style="margin:8px 0 0">Importer remplace le planning de cet appareil par celui du fichier. · version 23/10</p></section>`;
+  <p class="foot" style="margin:8px 0 0">« Récupérer » remplace le planning et l'élevage de cet appareil par ceux du fichier. Sur iPhone, active Drive une fois dans l'app Fichiers (Parcourir › ⋯ › Modifier). · version 24/10</p></section>`;
 }
 function backupData(){return{app:"Catxpo",format:1,exported:new Date().toISOString(),items:JSON.parse(JSON.stringify(PLAN)),elevage:ELEV,home:HOME,depart:DEP}}
 async function exportBackup(){
-  const name=`catxpo-sauvegarde-${TODAY}.json`,full=backupData();{const ph={};(ELEV.cats||[]).forEach(c=>{if(PHOTOS[c.id])ph[c.id]=PHOTOS[c.id]});if(Object.keys(ph).length)full.photos=ph}const txt=JSON.stringify(full,null,2);
-  const day=new Date().toLocaleDateString("fr-BE");
-  const subj=`Sauvegarde Catxpo du ${day}`;
-  let link="";try{link=LINK_BASE+"#import="+await packBackup(JSON.stringify(backupData()))}catch(e){}
-  const body=`Voici mon planning Catxpo du ${day}.\n\n`+(link?`Pour l'importer, touche ce lien sur ton téléphone : Catxpo s'ouvre et te propose d'importer.\n${link}\n\nSi le lien ne marche pas : `:"Pour l'importer : ")+`enregistre le fichier joint, puis dans Catxpo > Mon planning > Sauvegarde, touche « Importer » et choisis-le.`+(full.photos?`\n\nLes photos des cartes d'identité ne passent que par le fichier joint : pour les recevoir, importe le fichier plutôt que le lien.`:"");
-  const mail=()=>{let mb=body;if(encodeURIComponent(mb).length>1800)mb=`Voici mon planning Catxpo du ${day}.\n\nPour l'importer : enregistre le fichier joint, puis dans Catxpo > Mon planning > Sauvegarde, touche « Importer » et choisis-le.`;const a=document.createElement("a");a.href=`mailto:?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(mb)}`;a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove()};
-  // 1) téléphone (et PC Windows) : menu de partage avec le fichier joint -> choisir Mail ou Gmail
+  const name=`sauvegarde-${TODAY}.json`,full=backupData();{const ph={};(ELEV.cats||[]).forEach(c=>{if(PHOTOS[c.id])ph[c.id]=PHOTOS[c.id]});if(Object.keys(ph).length)full.photos=ph}const txt=JSON.stringify(full,null,2);
   const file=new File([txt],name,{type:"application/json"});
-  const alt=new File([txt],name.replace(/\.json$/,".txt"),{type:"text/plain"});
-  if(navigator.share){for(const f of [alt,file]){let ok=true;try{ok=!navigator.canShare||navigator.canShare({files:[f]})}catch(e){ok=false}
-    if(!ok)continue;
-    try{await navigator.share({files:[f],title:subj,text:body});return}catch(e){if(e&&e.name==="AbortError")return;
-      try{await navigator.share({files:[f]});return}catch(e2){if(e2&&e2.name==="AbortError")return}}}}
-  // 2) sinon : le fichier est enregistré, puis la boîte mail s'ouvre avec le message prêt (il reste à joindre le fichier)
+  const help=h=>{const b=$("#bkHelp");if(b){b.innerHTML=h;b.hidden=false}};
+  // iPhone (et appareils qui l'acceptent) : menu de partage avec le .json -> choisir Drive
+  if(navigator.share){let ok=false;try{ok=navigator.canShare&&navigator.canShare({files:[file]})}catch(e){}
+    if(ok){try{await navigator.share({files:[file],title:"Sauvegarde Catxpo"});help(`Dans le menu, choisis <b>Drive</b> (ou « Enregistrer dans Fichiers › Drive ») pour y ranger <b>${esc(name)}</b>.`);return}catch(e){if(e&&e.name==="AbortError")return}}}
+  // Android et ordinateur : le .json est téléchargé, puis on l'ajoute au Drive
   let dl=null;
   if(window.claude&&window.claude.use){try{dl=await window.claude.use("downloads")}catch(e){dl=null}}
-  if(dl){try{await dl.save({filename:name,data:txt})}catch(e){if(e&&e.code==="declined")return;toast("Export impossible ici");return}}
+  if(dl){try{await dl.save({filename:name,data:txt})}catch(e){if(e&&e.code==="declined")return;toast("Enregistrement impossible ici");return}}
   else{const a=document.createElement("a");a.href=URL.createObjectURL(file);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
-  mail();toast("Fichier enregistré : joins-le au mail (trombone)");
+  help(`<b>${esc(name)}</b> est dans tes Téléchargements. Pour l'envoyer sur le Drive : ouvre l'app <b>Drive</b>, touche <b>+</b>, puis <b>Importer</b>, et choisis ce fichier. <a href="https://drive.google.com/" target="_blank" rel="noopener">Ouvrir Google Drive</a>`);
+  toast("Sauvegarde enregistrée");
 }
 function cleanItems(o){const out={};if(!o||typeof o!=="object"||Array.isArray(o))return null;
   for(const[k,v]of Object.entries(o)){if(!/^[\w.:@+~-]{1,200}$/.test(k)||!v||typeof v!=="object"||Array.isArray(v))continue;out[k]=JSON.parse(JSON.stringify(v))}return out}
@@ -897,7 +889,7 @@ async function openPaste(){const box=$("#pasteBox");if(!box)return;box.hidden=fa
 async function importFromLink(){const m=location.hash.match(/^#import=([\w-]+)$/);if(!m)return;
   try{history.replaceState(null,"",location.pathname+location.search)}catch(e){}
   try{const d=await unpackBackup(m[1]);view="plan";render();applyBackup(d)}catch(e){toast("Ce lien d'import est abîmé : demande un nouvel envoi")}}
-document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-bk]");if(!b)return;if(b.dataset.bk==="export")exportBackup();else if(b.dataset.bk==="paste")openPaste();else{const f=$("#bkFile");if(f){f.value="";f.click()}}});
+document.addEventListener("click",e=>{const b=e.target.closest&&e.target.closest("[data-bk]");if(!b)return;if(b.dataset.bk==="export")exportBackup();else{const f=$("#bkFile");if(f){f.value="";f.click()}}});
 document.addEventListener("click",async e=>{if(e.target&&e.target.closest&&e.target.closest("#pasteGo")){const v=$("#pasteIn").value;if(!v.trim()){toast("Colle d'abord le lien");return}await importFromText(v)}});
 document.addEventListener("change",e=>{if(e.target&&e.target.id==="bkFile")importBackup(e.target.files&&e.target.files[0])});
 if(STANDALONE)document.body.classList.add("standalone");

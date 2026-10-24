@@ -37,16 +37,15 @@ Données : calendrier officiel TICA et sites des clubs, consultés en octobre 20
 2. Touche le menu **⋮** en haut à droite, puis **Installer l'application** (ou **Ajouter à l'écran d'accueil**).
 3. Confirme avec **Installer**. Catxpo s'ouvre ensuite en plein écran, comme une app.
 
-## Passer le planning d'un téléphone à l'autre
+## Passer le planning d'un téléphone à l'autre (Google Drive)
 
 Dans **Mon planning**, carte **Sauvegarde** :
-- **Exporter** crée un fichier de sauvegarde et ouvre le menu de partage (e-mail, WhatsApp, AirDrop…).
-  Sur Android, le fichier est envoyé en `.txt` : c'est normal, il s'importe de la même façon.
-- Sur l'autre téléphone, enregistre le fichier reçu, puis **Importer** et choisis-le.
-  L'import remplace le planning de ce téléphone.
-- **iPhone avec l'icône Catxpo** : appui long sur le lien du mail, « Copier le lien », puis dans Catxpo
-  **Coller un lien d'import** et **Importer**. (Toucher le lien l'ouvrirait dans Safari, qui garde ses données à part.)
-  Les photos des cartes d'identité ne passent que par le fichier joint.
+- **Envoyer vers le Drive** crée le fichier `sauvegarde-AAAA-MM-JJ.json` (planning, checklists, hôtels, notes, élevage, photos).
+  Sur iPhone, le menu de partage s'ouvre : choisis Drive. Sur Android, le fichier va dans Téléchargements :
+  ouvre l'app Drive, touche **+**, **Importer**, et choisis-le.
+- **Récupérer depuis le Drive** ouvre le choix de fichier : va dans Drive et prends la sauvegarde la plus récente.
+  Elle remplace le planning et l'élevage de l'appareil.
+- Sur iPhone, active Drive une seule fois dans l'app Fichiers : Parcourir › ⋯ › Modifier › Drive.
 
 ## Bon à savoir
 
