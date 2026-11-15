@@ -318,7 +318,7 @@ const DOW=["lun","mar","mer","jeu","ven","sam","dim"];
 const pd=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};
 const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const TODAY=iso(new Date());
-const APP_VERSION="7.21",APP_UPDATED="15/11/2026";
+const APP_VERSION="11.21",APP_UPDATED="15/11/2026";
 const FIVE=["Belgique","France","Pays-Bas","Allemagne","Angleterre"];const STD4=["Belgique","France","Allemagne","Pays-Bas"];
 const isStd=()=>UI.mode==="std";const MYC=()=>isStd()?STD4:FIVE;const myLbl=()=>isStd()?"Mes 4 pays":"Mes 5 pays";
 const NAME={"Pays-Bas":"Hollande"};
