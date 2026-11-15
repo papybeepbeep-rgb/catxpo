@@ -315,7 +315,7 @@ const DOW=["lun","mar","mer","jeu","ven","sam","dim"];
 const pd=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};
 const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 const TODAY=iso(new Date());
-const APP_VERSION="7.17",APP_UPDATED="15/11/2026";
+const APP_VERSION="7.18",APP_UPDATED="15/11/2026";
 const FIVE=["Belgique","France","Pays-Bas","Allemagne","Angleterre"];const STD4=["Belgique","France","Allemagne","Pays-Bas"];
 const isStd=()=>UI.mode==="std";const MYC=()=>isStd()?STD4:FIVE;const myLbl=()=>isStd()?"Mes 4 pays":"Mes 5 pays";
 const NAME={"Pays-Bas":"Hollande"};
@@ -374,7 +374,7 @@ let writing=Promise.resolve();
 function savePlan(){
   try{localStorage.setItem("polyexpo-plan",JSON.stringify(PLAN))}catch(e){}
   if(planDoc){const body={items:JSON.parse(JSON.stringify(PLAN)),depart:DEP,home:HOME,driveEmail:DRIVE_EMAIL||"",driveFolder:FOLDER||null,accounts:ACCOUNTS,askStart:ASK_START,elevage:ELEV,updated:Date.now()};writing=writing.then(()=>planDoc.set(body)).catch(()=>{syncMode="local";updSync()})}
-  updBadge();
+  updBadge();if(window.__syReady)syncSoon();
 }
 let noteTimer;function saveSoon(){clearTimeout(noteTimer);noteTimer=setTimeout(savePlan,700)}
 function updSync(){const e=$("#sync");if(e)e.textContent=syncMode==="cloud"?"Synchronisé avec ton compte Claude":"Enregistré dans ce navigateur"}
@@ -565,8 +565,8 @@ function bindContact(){
 // ---------- photos des cartes d'identité (gardées sur l'appareil, dans IndexedDB) ----------
 let PHOTOS={};
 const idb=()=>new Promise((ok,ko)=>{try{const r=indexedDB.open("catxpo",1);r.onupgradeneeded=()=>r.result.createObjectStore("photos");r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error)}catch(e){ko(e)}});
-async function photoPut(id,data){PHOTOS[id]=data;try{const d=await idb();await new Promise((ok,ko)=>{const t=d.transaction("photos","readwrite");t.objectStore("photos").put(data,id);t.oncomplete=ok;t.onerror=()=>ko(t.error)})}catch(e){toast("Photo gardée pour cette session seulement (stockage indisponible)")}}
-async function photoDel(id){delete PHOTOS[id];try{const d=await idb();d.transaction("photos","readwrite").objectStore("photos").delete(id)}catch(e){}}
+async function photoPut(id,data){PHOTOS[id]=data;if(window.__syReady)syncSoon();try{const d=await idb();await new Promise((ok,ko)=>{const t=d.transaction("photos","readwrite");t.objectStore("photos").put(data,id);t.oncomplete=ok;t.onerror=()=>ko(t.error)})}catch(e){toast("Photo gardée pour cette session seulement (stockage indisponible)")}}
+async function photoDel(id){delete PHOTOS[id];if(window.__syReady)syncSoon();try{const d=await idb();d.transaction("photos","readwrite").objectStore("photos").delete(id)}catch(e){}}
 (async()=>{try{const d=await idb();const t=d.transaction("photos","readonly").objectStore("photos");const req=t.openCursor();
   req.onsuccess=()=>{const c=req.result;if(c){PHOTOS[c.key]=c.value;c.continue()}else if(view==="elev")render()}}catch(e){}})();
 function shrinkImage(file){return new Promise((ok,ko)=>{const url=URL.createObjectURL(file),im=new Image();
@@ -1078,7 +1078,7 @@ function licBanner(){const st=licState();
   return""}
 function licPanel(){const st=licState();if(st.kind==="free")return"";
   const t=st.kind==="creator"?"⭐ Accès créateur, sans limite":st.kind==="active"?`✅ Abonnement actif jusqu'au ${fdate(st.exp)}`:st.kind==="trial"?`🎁 Essai gratuit : ${st.left} jour${st.left>1?"s":""} restant${st.left>1?"s":""}`:st.kind==="offline"?"📶 Abonnement à vérifier (connexion internet nécessaire)":st.kind==="expired"?`⛔ Abonnement expiré le ${fdate(st.exp)}`:"⛔ Essai terminé";
-  return`<section class="card licpanel"><h3>Mon abonnement</h3><p class="muted" style="margin:6px 0 10px">${t}${st.code?`<br><span style="font-size:.8rem">Code : ${st.code}</span>`:""}</p><button type="button" class="btn" data-lic="open">${st.code?"Changer de code":"Entrer un code"}</button></section>`}
+  return`<section class="card licpanel"><h3>Mon abonnement</h3><p class="muted" style="margin:6px 0 10px">${t}${st.code?`<br><span style="font-size:.8rem">Code : ${st.code}</span>`:""}</p><button type="button" class="btn" data-lic="open">${st.code?"Changer de code":"Entrer un code"}</button>${syLine()}</section>`}
 function licGate(force){let o=$("#licov");const st=licState();const block=["locked","expired"].includes(st.kind);
   if(!block&&!force){if(o)o.remove();return}
   if(!o){o=document.createElement("div");o.id="licov";o.className="licov";document.body.appendChild(o)}
@@ -1091,12 +1091,63 @@ function licGate(force){let o=$("#licov");const st=licState();const block=["lock
   <p class="muted licbuy">Pas encore de code ? Abonnement : <b>${LIC_PRICE}</b>.${CONTACT_EMAIL?` Écris à <b>${esc(CONTACT_EMAIL)}</b> pour l'obtenir.`:""}</p>
   ${CONTACT_EMAIL?`<a class="btn" href="mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent("[Catxpo] Abonnement")}">Demander un code</a>`:""}
   ${block?"":`<button type="button" class="btn" id="licx">Fermer</button>`}</div>`;
-  const go=async()=>{const b=$("#licok");b.disabled=true;b.textContent="Vérification…";const err=await licActivate($("#liccode").value);b.disabled=false;b.textContent="Activer";if(err){$("#licerr").textContent=err;return}const L=licLoad();delete L.lost;licSave(L);o.remove();toast(L.kind==="createur"?"Accès créateur activé":"Abonnement activé, merci !");render()};
+  const go=async()=>{const b=$("#licok");b.disabled=true;b.textContent="Vérification…";const err=await licActivate($("#liccode").value);b.disabled=false;b.textContent="Activer";if(err){$("#licerr").textContent=err;return}const L=licLoad();delete L.lost;licSave(L);o.remove();syncNow();toast(L.kind==="createur"?"Accès créateur activé":"Abonnement activé, merci !");render()};
   $("#licok").onclick=go;$("#liccode").addEventListener("keydown",e=>{if(e.key==="Enter")go()});const x=$("#licx");if(x)x.onclick=()=>o.remove()}
 function bindLic(root){root.querySelectorAll("[data-lic]").forEach(b=>b.addEventListener("click",()=>{if(b.dataset.lic==="open")licGate(true)}))}
 
+// ---------- Partage entre les téléphones d'un même code (planning, élevage, photos, adresse) ----------
+const SY_KEY="catxpo-sync",SY_POLL=15000,SY_GAP=4000;
+let SY={rev:0,st:{},first:true,last:0,busy:false,again:false,timer:null,lastOk:0};
+try{const o=JSON.parse(localStorage.getItem(SY_KEY)||"null");if(o&&o.st){SY.rev=o.rev||0;SY.st=o.st;SY.first=!!o.first;SY.lastOk=o.lastOk||0}}catch(e){}
+function sySave(){try{localStorage.setItem(SY_KEY,JSON.stringify({rev:SY.rev,st:SY.st,first:SY.first,lastOk:SY.lastOk}))}catch(e){}}
+function syHash(s){let h=0x811c9dc5;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)>>>0}return h.toString(36)+"."+s.length.toString(36)}
+function syOn(){if(!licOn())return false;const L=licLoad();return !!(L.code&&L.okAt)}
+function syLocal(){const E={};
+  for(const k in PLAN)E["p:"+k]=PLAN[k];
+  const meta={};for(const k in ELEV)if(k!=="cats")meta[k]=ELEV[k];E["e:meta"]=meta;
+  (ELEV.cats||[]).forEach(c=>{if(c&&c.id)E["c:"+c.id]=c});
+  if(HOME&&HOME.q)E["h:home"]=HOME;
+  for(const id in PHOTOS)if(typeof PHOTOS[id]==="string")E["f:"+id]=syHash(PHOTOS[id]);
+  return E}
+function syDiff(){const E=syLocal(),now=Date.now(),ch={},photos={};
+  for(const k in E){const h=k.startsWith("f:")?E[k]:syHash(JSON.stringify(E[k]));const s=SY.st[k];
+    if(!s||s.h!==h||s.del){const u=SY.first&&!s?0:now;SY.st[k]={h,u};ch[k]={u,v:E[k]};if(k.startsWith("f:"))photos[k.slice(2)]={h,data:PHOTOS[k.slice(2)]}}}
+  for(const k in SY.st)if(!(k in E)&&!SY.st[k].del){SY.st[k]={h:"",u:now,del:1};ch[k]={u:now,del:1}}
+  return{ch,photos}}
+async function syApply(remote){let n=0;const dl=[];
+  for(const k in remote){const r=remote[k],s=SY.st[k];const rh=r.del?"":(k.startsWith("f:")?r.v:syHash(JSON.stringify(r.v)));if(s&&(s.u>r.u||(s.u===r.u&&s.h===rh&&!!s.del===!!r.del)))continue;
+    const [t,id]=[k.slice(0,1),k.slice(2)];
+    if(r.del){if(t==="p")delete PLAN[id];else if(t==="c")ELEV.cats=(ELEV.cats||[]).filter(c=>c.id!==id);else if(t==="f")photoDel(id);SY.st[k]={h:"",u:r.u,del:1};n++;continue}
+    const v=r.v;
+    if(t==="p")PLAN[id]=v;
+    else if(t==="e"){const cats=ELEV.cats;ELEV=normElev({...v,cats})}
+    else if(t==="c"){const i=(ELEV.cats||[]).findIndex(c=>c.id===id);if(i>=0)ELEV.cats[i]=v;else (ELEV.cats=ELEV.cats||[]).push(v)}
+    else if(t==="h"&&v&&typeof v.la==="number"){HOME={...v,n:"Chez moi",home:true};try{localStorage.setItem("polyexpo-home",JSON.stringify(HOME))}catch(e){}if(DEP.home){DEP=HOME;if(typeof applyDep==="function")applyDep()}}
+    else if(t==="f"){if(!PHOTOS[id]||syHash(PHOTOS[id])!==v)dl.push([id,v,r.u]);continue}
+    SY.st[k]={h:t==="f"?v:syHash(JSON.stringify(v)),u:r.u};n++}
+  for(const [id,h,u] of dl){try{const j=await syPost("/api/photo",{id});if(j.ok&&j.data){await photoPut(id,j.data);SY.st["f:"+id]={h:syHash(j.data),u};n++}}catch(e){}}
+  if(n){try{localStorage.setItem("polyexpo-plan",JSON.stringify(PLAN));localStorage.setItem("polyexpo-elevage",JSON.stringify(ELEV))}catch(e){}}
+  return n}
+async function syPost(path,extra){const L=licLoad();const r=await fetch(LIC_API.replace(/\/+$/,"")+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code:L.code,device:licDevice(),...extra})});let j={};try{j=await r.json()}catch(e){}return j}
+async function syncNow(){if(!syOn()||!navigator.onLine)return;if(SY.busy){SY.again=true;return}
+  SY.busy=true;SY.last=Date.now();
+  try{const {ch,photos}=syDiff();const j=await syPost("/api/sync",{changes:ch,photos});
+    if(j.ok){SY.first=false;SY.rev=j.rev;const n=await syApply(j.e||{});SY.lastOk=Date.now();sySave();
+      if(n){const typing=document.activeElement&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)&&$("#screen").contains(document.activeElement);
+        if(typing)SY.redraw=true;else render();updBadge();toast("🔄 Mis à jour depuis un autre téléphone")}
+      else sySave()}
+    else if(["revoked","expired","device","unknown"].includes(j.error))licRecheck();
+  }catch(e){}finally{SY.busy=false;if(SY.again){SY.again=false;syncSoon()}}}
+function syncSoon(){if(!syOn())return;clearTimeout(SY.timer);SY.timer=setTimeout(syncNow,Math.max(1500,SY_GAP-(Date.now()-SY.last)))}
+function syLine(){if(!syOn())return"";const s=SY.lastOk?Math.round((Date.now()-SY.lastOk)/1000):null;
+  return`<p class="muted" style="margin:8px 0 0;font-size:.82rem">🔄 Partagé avec tes autres téléphones qui utilisent ce code${s!=null?` · synchronisé ${s<60?"il y a quelques secondes":"il y a "+Math.round(s/60)+" min"}`:""}.</p>`}
+document.addEventListener("focusout",()=>{if(SY.redraw){setTimeout(()=>{if(!(document.activeElement&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))){SY.redraw=false;render()}},300)}});
+setInterval(()=>{if(document.visibilityState==="visible")syncNow()},SY_POLL);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")syncNow()});
+addEventListener("online",()=>syncNow());
+window.__syReady=true;
 render();importFromLink();addEventListener("hashchange",importFromLink);
-licGate();licRecheck();addEventListener("online",licRecheck);
+licGate();licRecheck().then(()=>syncNow());addEventListener("online",licRecheck);
 </script>
 
 </body>
